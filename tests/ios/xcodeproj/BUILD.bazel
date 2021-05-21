@@ -30,7 +30,7 @@ additional_scheme_info(
     name = "ObjcFrameworkSchemeInfo",
     testonly = True,
     build_target = "//tests/ios/frameworks/objc:ObjcFramework",
-    test_bundle_targets = [
+    test_action_targets = [
         "//tests/ios/frameworks/objc:ObjcFrameworkTests",
     ],
     test_environment = {
