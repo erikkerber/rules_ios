@@ -2,10 +2,10 @@
 
 set -euo pipefail
 
-# Xcode 12 and under stored index information in /DerivedData/<project>/Build/Produts
+# Xcode 12 and under stored index information in /DerivedData/<project>/Build/Products
 readonly xcode_12_index_dir="$BUILT_PRODUCTS_DIR"
 
-# Xcode 13 and later store index information in /DerivedData/<project>/Index/Build/Produts
+# Xcode 13 and later store index information in /DerivedData/<project>/Index/Build/Products
 readonly xcode_13_index_dir="${BUILT_PRODUCTS_DIR/\/Build\/Products\///Index/Build/Products/}"
 
 readonly dirs=(
@@ -18,9 +18,7 @@ for index_dir in "${dirs[@]}"; do
         doc="${module%.swiftmodule}.swiftdoc"
         module_name=$(basename "$module")
         module_bundle="$index_dir/$module_name"
-        echo "mkdir -p $module_bundle"
         mkdir -p "$module_bundle"
-
 
         cp "$module" "$module_bundle/$CURRENT_ARCH.swiftmodule" || true
         cp "$doc" "$module_bundle/$CURRENT_ARCH.swiftdoc" || true
