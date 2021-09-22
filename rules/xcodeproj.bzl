@@ -977,7 +977,7 @@ Additional LLDB settings to be added in each target's .lldbinit configuration fi
         """),
         "bazel_execution_log_enabled": attr.bool(default = False, mandatory = False),
         "bazel_profile_enabled": attr.bool(default = False, mandatory = False),
-        "team_id": attr.string(mandatory = False, doc = "Apple Developer team ID to assist in automatic signing.")
+        "team_id": attr.string(mandatory = False, doc = "Apple Developer team ID to assist in automatic signing."),
     },
     executable = True,
 )
