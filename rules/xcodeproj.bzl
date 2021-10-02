@@ -141,6 +141,17 @@ def _xcodeproj_aspect_impl(target, ctx):
             application_extension_names = [extension[AppleBundleInfo].bundle_name for extension in application_extensions]
 
         framework_includes = depset([], transitive = _get_attr_values_for_name(deps, _SrcsInfo, "framework_includes"))
+
+        targetz = [
+            dep[_TargetInfo].direct_targets
+            for dep in deps
+            if _TargetInfo in dep
+        ]
+
+        print("{} {}".format(target.label, len(deps)))
+        [print(dep) for dep in deps]
+
+        target_names = _get_attr_values_for_name(deps, _TargetInfo, "targets")
         info = struct(
             name = bundle_info.bundle_name,
             bundle_id = bundle_info.bundle_id,
@@ -308,7 +319,10 @@ def _framework_search_paths_for_target(target_name, all_transitive_targets):
             for fi in at.framework_includes.to_list():
                 if fi[0] != "/":
                     fi = "$BAZEL_WORKSPACE_ROOT/%s" % fi
+                if "carthage" not in fi:
+                    continue
                 framework_search_paths.append("\"%s\"" % fi)
+
     return framework_search_paths
 
 def _swiftmodulepaths_for_target(target_name, all_transitive_targets):
@@ -597,6 +611,32 @@ def _populate_xcodeproj_targets_and_schemes(ctx, targets, src_dot_dots, all_tran
         if test_host_appname:
             target_dependencies.append({"target": test_host_appname})
             target_settings["TEST_HOST"] = "$(BUILT_PRODUCTS_DIR)/{test_host_appname}.app/{test_host_appname}".format(test_host_appname = test_host_appname)
+
+        # HERE
+
+        #print(all_transitive_targets)
+
+        # for at in all_transitive_targets:
+        #     if at.name == target_name:
+        #         for fi in at.framework_includes.to_list():
+        #             if fi[0] != "/":
+        #                 fi = "$BAZEL_WORKSPACE_ROOT/%s" % fi
+        #             framework_search_paths.append("\"%s\"" % fi)
+
+        #print(framework_search_paths)
+        for at in all_transitive_targets:
+            if at.name == target_name:
+                for fi in at.framework_includes.to_list():
+                    if "bazel-out" in fi:
+                        if any([x in fi for x in ["FlexHelperDebugServiceLib", "FlexHelperService", "NotificationServiceTests", "NotificationServiceExtensionLib", "ShareExtensionLib", "Slack_unlinked"]]):
+                            #print(fi)
+                            continue
+                        if "FlexHelperDebugServiceLib" in fi:
+                            print("What?")
+                        target_dependencies.append({"target": fi.split("/").pop()})
+
+            # print("{} <- {}".format(target_name, at.name))
+            # target_dependencies.append({"target": at.name})
 
         if target_info.targeted_device_family:
             target_settings["TARGETED_DEVICE_FAMILY"] = target_info.targeted_device_family
