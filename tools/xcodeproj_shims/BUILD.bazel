@@ -9,14 +9,14 @@ sh_binary(
 )
 
 sh_binary(
-    name = "ld-stub",
-    srcs = ["ld-stub.sh"],
+    name = "ld_stub_nbs",
+    srcs = ["ld_stub_nbs.sh"],
     visibility = STUB_VISIBILITY,
 )
 
 sh_binary(
-    name = "swiftc-stub",
-    srcs = ["swiftc-stub.sh"],
+    name = "swiftc_stub_nbs",
+    srcs = ["swiftc_stub_nbs.py"],
     visibility = STUB_VISIBILITY,
 )
 
