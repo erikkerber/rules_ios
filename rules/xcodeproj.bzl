@@ -25,6 +25,7 @@ _PLATFORM_MAPPING = {
 _PRODUCT_SPECIFIER_LENGTH = len("com.apple.product-type.")
 
 _IGNORE_AS_TARGET_TAG = "xcodeproj-ignore-as-target"
+_INCLUDE_IN_PROJECT_TAG = "xcodeproj-include-in-project"
 
 def _dir(o):
     return [
@@ -33,8 +34,14 @@ def _dir(o):
         if x not in ("to_json", "to_proto")
     ]
 
-def _is_current_project_file(f):
-    return f.is_source and _is_current_project_path(f.path)
+def _is_current_project_file(f, include_if_external = False):
+    a = f.is_source and (_is_current_project_path(f.path) or include_if_external)
+
+    # if "grep-includes" in f.path and a:
+    # print(target.label.name)
+    # print(_is_current_project_path(f.path))
+    # print(include_if_external)
+    return f.is_source and (_is_current_project_path(f.path) or include_if_external)
 
 def _is_current_project_path(path):
     return not path.startswith("external/")
@@ -45,6 +52,29 @@ def _srcs_info_build_files(ctx):
         return []
 
     return [path]
+
+def _workspace_relative_path(root_path, file):
+    """Returns a path to a file, relative to the location where the xcodeproj_xcodebuild target is declared.
+
+    For example, if the target is declared in "project-gen/BUILD.bazel", and the file's path within the workspace is
+    "App/Source/main.swift", this function will return "../App/Source/main.swift".
+
+    Args:
+        root_path: a path component to reach the workspace root. In the example above, this will be "..".
+        file: a file object.
+    """
+
+    # file.owner.workspace_name returns an empty string for files in the main workspace.
+    if len(file.owner.workspace_name):
+        print(file.path)
+
+        # External workspaces are available under "$(bazel info execution_root)/external". Bazel creates a symlink to
+        # the execution root in the root of the workspace, named "bazel-$PWD". We use this symlink to make the sources
+        # visible to Xcode. It's difficult to know the name of the directory containing our workspace here, so we add a
+        # token that will be substituted in our installer script.
+        return paths.join(root_path, "___EXECROOT_SYMLINK_NAME____", file.path)
+
+    return paths.join(root_path, file.path)
 
 def _xcodeproj_aspect_collect_hmap_paths(deps, target, ctx):
     """Helper method collecting hmap paths from HeaderMapInfo
@@ -208,7 +238,14 @@ def _xcodeproj_aspect_impl(target, ctx):
                 non_arc_srcs += getattr(ctx.rule.files, attr, [])
             else:
                 asset_srcs += getattr(ctx.rule.files, attr, [])
-        srcs = [f for f in srcs if _is_current_project_file(f)]
+
+        if "HTMLEntities_objc" in ctx.label.name:
+            print("{} {}".format(ctx.label.name, _INCLUDE_IN_PROJECT_TAG in tags))
+            if _INCLUDE_IN_PROJECT_TAG in tags:
+                print("Here")
+                print(asset_srcs)
+        include_if_external = _INCLUDE_IN_PROJECT_TAG in tags
+        srcs = [f for f in srcs if _is_current_project_file(f, include_if_external)]
         non_arc_srcs = [f for f in non_arc_srcs if _is_current_project_file(f)]
         asset_srcs = [f for f in asset_srcs if _is_current_project_file(f)]
         framework_includes = _get_attr_values_for_name(deps, _SrcsInfo, "framework_includes")
@@ -224,6 +261,7 @@ def _xcodeproj_aspect_impl(target, ctx):
             swift_defines.append(depset(_collect_swift_defines(swift_info.direct_modules)))
             swift_defines.append(depset(_collect_swift_defines(swift_info.transitive_modules.to_list())))
             swift_module_paths = [m.swift.swiftmodule.path for m in target[SwiftInfo].direct_modules]
+
         providers.append(
             _SrcsInfo(
                 srcs = depset(srcs, transitive = _get_attr_values_for_name(deps, _SrcsInfo, "srcs")),
@@ -397,7 +435,7 @@ def _classify_asset(path):
             if component.endswith("." + extension):
                 return (extension, path_so_far)
 
-        # Match no exntesion, keep appending the component
+        # Match no extension, keep appending the component
         path_so_far += "/"
 
     # No match, return None and complete path
@@ -418,14 +456,13 @@ def _gather_asset_sources(target_info, path_prefix):
     catalog_groups = {}
 
     for s in target_info.asset_srcs.to_list():
-        short_path = s.short_path
-        (extension, path_so_far) = _classify_asset(short_path)
+        (extension, path_so_far) = _classify_asset(s.short_path)
 
         # Reference for logics below:
         # https://github.com/bazelbuild/rules_apple/blob/master/apple/internal/partials/support/resources_support.bzl#L162
         if extension == None:
             payload = {
-                "path": paths.join(path_prefix, short_path),
+                "path": _workspace_relative_path(path_prefix, s),
                 "optional": True,
                 "buildPhase": "none",
             }
@@ -536,12 +573,13 @@ def _populate_xcodeproj_targets_and_schemes(ctx, targets, src_dot_dots, all_tran
                 fail(_CONFLICTING_TARGET_MSG.format(ctx.label, target_name, existing_type, target_info.bazel_build_target_name, target_info.product_type))
 
         target_macho_type = "staticlib" if product_type == "framework" else "$(inherited)"
+
         compiled_sources = [{
-            "path": paths.join(src_dot_dots, s.short_path),
+            "path": _workspace_relative_path(src_dot_dots, s),
             "optional": True,
         } for s in target_info.srcs.to_list()]
         compiled_non_arc_sources = [{
-            "path": paths.join(src_dot_dots, s.short_path),
+            "path": _workspace_relative_path(src_dot_dots, s),
             "optional": True,
             "compilerFlags": "-fno-objc-arc",
         } for s in target_info.non_arc_srcs.to_list()]
@@ -809,7 +847,7 @@ def _xcodeproj_impl(ctx):
     (xcodeproj_targets_by_name, xcodeproj_schemes_by_name) = _populate_xcodeproj_targets_and_schemes(ctx, targets, src_dot_dots, all_transitive_targets)
 
     project_file_groups = [
-        {"path": paths.join(src_dot_dots, f.short_path), "optional": True}
+        {"path": _workspace_relative_path(src_dot_dots, f.short_path), "optional": True}
         for f in ctx.files.additional_files
         if _is_current_project_file(f)
     ]
@@ -912,6 +950,7 @@ xcodeproj = rule(
 Generates a Xcode project file (.xcodeproj) with a reasonable set of defaults.
 Tags for configuration:
     xcodeproj-ignore-as-target: Add this to a rule declaration so that this rule will not generates a scheme for this target
+    xcodeproj-include-in-project: Add this to an external rule declaration to include the external source in the Xcode project 
 """,
     attrs = {
         # Important! The `Debug` is being used to conditionally pass

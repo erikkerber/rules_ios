@@ -14,6 +14,10 @@ _APPLE_FRAMEWORK_PACKAGING_KWARGS = [
     "skip_packaging",
 ]
 
+_APPLE_LIBRARY_KWARGS = [
+    "tags",
+]
+
 def apple_framework(name, apple_library = apple_library, **kwargs):
     """Builds and packages an Apple framework.
 
@@ -22,8 +26,9 @@ def apple_framework(name, apple_library = apple_library, **kwargs):
         apple_library: The macro used to package sources into a library.
         **kwargs: Arguments passed to the apple_library and apple_framework_packaging rules as appropriate.
     """
+    apple_library_tags = kwargs.get("tags", [])
     framework_packaging_kwargs = {arg: kwargs.pop(arg) for arg in _APPLE_FRAMEWORK_PACKAGING_KWARGS if arg in kwargs}
-    library = apple_library(name = name, **kwargs)
+    library = apple_library(name = name, tags = apple_library_tags, **kwargs)
     apple_framework_packaging(
         name = name,
         framework_name = library.namespace,

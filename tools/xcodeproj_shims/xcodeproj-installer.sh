@@ -56,6 +56,14 @@ chmod -R +w "${tmp_dest}"
 sed -i.bak -E -e 's|^([[:space:]]*path = )../../..;$|\1.;|g' "${tmp_dest}/project.pbxproj"
 # always trim three ../ from path, since that's "bazel-out/darwin-fastbuild/bin"
 sed -i.bak -E -e 's|([ "])../../../|\1|g' "${tmp_dest}/project.pbxproj"
+
+
+symlink_to_execroot="bazel-$(basename "${BUILD_WORKSPACE_DIRECTORY}")"
+sed -i '' "s/___EXECROOT_SYMLINK_NAME____/$symlink_to_execroot/g" "${tmp_dest}/project.pbxproj"
+
+echo $symlink_to_execroot >> ~/log.txt
+echo "${tmp_dest}/project.pbxproj" >> ~/log.txt
+
 rm "${tmp_dest}/project.pbxproj.bak"
 
 rsync --recursive --quiet --copy-links "${tmp_dest}" "${dest}"
